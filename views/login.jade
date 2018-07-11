@@ -1,0 +1,22 @@
+extends layout
+block content
+	script.
+		$(document).ready(function(){
+			$("#btnLogin").on("click",function(){
+				login($("#txtUsername").val(),$("#txtPassword").val());
+			});
+		});
+	table
+		tr
+			td Username
+			td
+				input(type="text", id="txtUsername")
+		tr
+			td Password
+			td
+				input(type='password', id='txtPassword')
+		tr
+			td
+			td
+				input(type='button', id='btnLogin', value='connexion')
+				

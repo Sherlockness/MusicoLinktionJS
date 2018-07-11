@@ -1,0 +1,26 @@
+doctype html
+html
+	head
+		title= title
+		link(rel='stylesheet', href='/stylesheets/style.css')
+		script(type='text/javascript' src='https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js')
+		script(type='text/javascript' src='js/api/users.js')
+		script.
+			session="#{session}";
+			$(document).ready(function(){
+				$("#aLogout").on("click",function(){
+					logout();
+				});
+			});
+	body
+		div(id='divHeader')
+			h1= title
+			p Welcome to #{title}
+			div(id='divProfile')
+				-if(session.user == null)
+					a(href='#') connexion
+				-else
+					p #{session.user.username}
+					a(href='#' id='aLogout') déconnexion
+		div(id='divContent')
+			block content
