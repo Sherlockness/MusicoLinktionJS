@@ -15,7 +15,10 @@ module.exports = function(sequelize, DataTypes) {
     username: DataTypes.STRING(32),
     password: DataTypes.STRING(32),
 	mail: DataTypes.STRING(200),
-    scope: DataTypes.STRING
+    scope: DataTypes.STRING,
+	mailValidation: DataTypes.INTEGER,
+	mailValidated: DataTypes.BOOLEAN,
+	mailValidationHost: DataTypes.STRING(200),
   }, {
     tableName: 'mclk_users', // oauth_users
     timestamps: false,
@@ -90,7 +93,87 @@ module.exports = function(sequelize, DataTypes) {
 					});
 				});
 			})
-		}
+		},
+		getByMail: function(vMail){
+			return new Promise((resolve,reject) => {
+				User.findOne({
+					where: {mail: vMail}
+				}).then(u => {
+					if(u === null){
+						reject({
+							status:'error',
+							message:'user not found'
+						});
+					}else{
+						resolve(u);
+					}
+				});
+			})
+		},
+		updateMailValidation: function(vMail,codeValidation,hostValidation){
+			return new Promise((resolve,reject) => {
+				User.findOne({
+					where: {mail: vMail}
+				}).then(u => {
+					if(u === null){
+						reject({
+							status:'error',
+							message:'user not found'
+						});
+					}else{
+						console.log(codeValidation);
+						u.update({
+							mailValidation: codeValidation,
+							mailValidationHost: hostValidation
+						}).then(function(){
+							console.log('Update OK');
+							resolve({
+								status:'success',
+								message:'Validation code updated'
+							})
+						}).catch(function(err){
+							console.log('Update ERR : '+err);
+							reject({
+								status:'error',
+								message:'unable to update validation code'
+							});
+						})
+					}
+				});
+			})
+		},
+		checkValidationCode: function(vMail,codeValidation,hostValidation){
+			return new Promise((resolve,reject) => {
+				User.findOne({
+					where: {
+						mail: vMail,
+						mailValidation: codeValidation,
+						mailValidationHost: hostValidation
+					}
+				}).then(u => {
+					if(u === null){
+						reject({
+							status:'error',
+							message:'code, mail or host don\'t match'
+						});
+					}else{
+						u.update({
+							mailValidated: 1
+						}).then(function(){
+							resolve({
+								status:'success',
+								message:'mail validated'
+							})
+						}).catch(function(){
+							reject({
+								status:'error',
+								message:'unable to update validated'
+							});
+						})
+					}
+				});
+			})
+		},
     },
   });
 

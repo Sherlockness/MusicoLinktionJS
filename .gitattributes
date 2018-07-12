@@ -1,0 +1,2 @@
+config.js		filter=crypt
+sqldb/index.js	filter=crypt
