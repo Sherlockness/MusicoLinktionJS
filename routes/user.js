@@ -24,7 +24,7 @@ router.post('/login', function(req, res, next) {
 			username: req.body.username,
 			password: req.body.password,
 		}
-		User.login(userData).then(function(result){
+		User.login(userData,sqldb).then(function(result){
 			req.session.user = result.user;
 			res.json(result);
 		}).catch(err => {

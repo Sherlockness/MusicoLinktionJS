@@ -1,0 +1,10 @@
+extends ./../layout
+block content
+	.table
+		.row
+			.cell(id='divServicesProfilesAvailable')
+				ul
+				each sp in servicesProfilesAvailable
+					li
+						a(href='#', onclick='navigate(\'divServicesProfilesContent\',\'manage_#{sp.prefix}\')')= sp.name
+			.cell(id='divServicesProfilesContent')

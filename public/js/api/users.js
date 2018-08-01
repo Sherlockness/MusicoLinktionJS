@@ -1,5 +1,5 @@
 function login(_username,_password){
-	$.post( "api/users/webLogin", { username: _username, password: _password }, function( data ) {
+	$.post( "/users/login", { username: _username, password: _password }, function( data ) {
 		if(data.status="success"){
 			document.location= "/";
 		}
@@ -7,7 +7,7 @@ function login(_username,_password){
 }
 
 function logout(){
-	$.post( "api/users/webLogout", function( data ) {
+	$.post( "/users/logout", function( data ) {
 		if(data.status="success"){
 			document.location = "/";
 		}

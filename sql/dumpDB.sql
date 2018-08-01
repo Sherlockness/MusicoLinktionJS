@@ -86,7 +86,7 @@ CREATE TABLE `mclk_usersServicesProfiles_data` (
   PRIMARY KEY (`id`),
   KEY `FK_usersServicesProfiles_data_servicesProfiles` (`usersServicesProfiles_id`),
   CONSTRAINT `FK_usersServicesProfiles_data_servicesProfiles` FOREIGN KEY (`usersServicesProfiles_id`) REFERENCES `mclk_users_servicesProfiles` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=21 DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -95,6 +95,7 @@ CREATE TABLE `mclk_usersServicesProfiles_data` (
 
 LOCK TABLES `mclk_usersServicesProfiles_data` WRITE;
 /*!40000 ALTER TABLE `mclk_usersServicesProfiles_data` DISABLE KEYS */;
+INSERT INTO `mclk_usersServicesProfiles_data` VALUES (19,15,'username','Sherlockness'),(20,15,'session_key','rkj-KtNzhns-A9uz3zYL2tqvogNIF2cq');
 /*!40000 ALTER TABLE `mclk_usersServicesProfiles_data` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -111,10 +112,8 @@ CREATE TABLE `mclk_users_servicesProfiles` (
   `service_profile` int(11) NOT NULL,
   PRIMARY KEY (`id`),
   KEY `FK_users_servicesProfiles_users` (`user_id`),
-  KEY `FK_users_servicesProfiles_servicesProfiles` (`service_profile`),
-  CONSTRAINT `FK_users_servicesProfiles_users` FOREIGN KEY (`user_id`) REFERENCES `mclk_users` (`id`),
-  CONSTRAINT `FK_users_servicesProfiles_servicesProfiles` FOREIGN KEY (`service_profile`) REFERENCES `mclk_users_servicesProfiles` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+  KEY `FK_users_servicesProfiles_servicesProfiles` (`service_profile`)
+) ENGINE=InnoDB AUTO_INCREMENT=16 DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -123,6 +122,7 @@ CREATE TABLE `mclk_users_servicesProfiles` (
 
 LOCK TABLES `mclk_users_servicesProfiles` WRITE;
 /*!40000 ALTER TABLE `mclk_users_servicesProfiles` DISABLE KEYS */;
+INSERT INTO `mclk_users_servicesProfiles` VALUES (15,43,1);
 /*!40000 ALTER TABLE `mclk_users_servicesProfiles` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -299,4 +299,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2018-07-12 12:27:25
+-- Dump completed on 2018-08-01 17:30:07

@@ -2,7 +2,9 @@ var express = require('express');
 var router = express.Router();
 var api = require('./api');
 var users = require('./user');
+var services = require('./services');
 router.use('/users', users);
+router.use('/services', services);
 /* API */
 router.use('/api', api);
 

@@ -3,6 +3,8 @@
  */
 'use strict';
 var utilities = require('./../components/utilities');
+
+
 module.exports = function(sequelize, DataTypes) {
   var User = sequelize.define('User',  {
     id: {
@@ -27,6 +29,8 @@ module.exports = function(sequelize, DataTypes) {
     classMethods: {
 		associate: function associate(models) {
 			//User.hasMany(models.OAuthClient);
+			console.log('User.belongsToMany(models.ServicesProfiles');
+			User.belongsToMany(models.ServicesProfiles, { through: models.UsersServicesProfiles , foreignKey: 'user_id', otherKey: 'service_profile'});
 		},
 		exists: function(vUsername){
 			return new Promise((resolve,reject) => {
@@ -65,20 +69,18 @@ module.exports = function(sequelize, DataTypes) {
 				});
 			})
 		},
-		login: function(userData){
+		login: function(userData,models){
 			return new Promise((resolve,reject) => {
 				User.exists(userData.username).then(function(result){
 					var encryptedPassword = result.dataValues.password;
-					console.log(encryptedPassword);
 					if(utilities.compareEncryptedString(userData.password,encryptedPassword)){
-						resolve({
-							status:'success',
-							message:'connected',
-							user:{
-								id:result.dataValues.id,
-								username:result.dataValues.username,
-								mail:result.dataValues.mail
-							}
+						User.loadProfiles(result.dataValues,models).then(u => {
+							console.log(u);
+							resolve({
+								status:'success',
+								message:'connected',
+								user: u
+							});
 						});
 					}else{
 						reject({
@@ -174,6 +176,36 @@ module.exports = function(sequelize, DataTypes) {
 				});
 			})
 		},
+		loadProfiles: function(_user,models){
+			return new Promise((resolve,reject) => {
+				User.findAll({
+					where: {
+						username: _user.username
+					},
+					include: [{
+						model: models.ServicesProfiles,
+						attributes: ["id","prefix", "name"]
+					}]
+				}).spread(function(u,created){
+					if(u === null){
+						reject({
+							status:'error',
+							message:'user not found'
+						});
+					}else{
+						var plainU = u.get({
+							plain: true
+						});
+						console.log(plainU);
+						/*var plainSP = plainU.UsersServicesProfiles.get({
+							plain: true
+						});
+						console.log(plainSP);*/
+						resolve(plainU);
+					}
+				});
+			})
+		}
     },
   });
 
