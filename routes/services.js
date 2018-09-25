@@ -1,3 +1,4 @@
+var config = require('../config');
 var express = require('express');
 var router = express.Router();
 var sqldb = require('./../sqldb');
@@ -7,18 +8,28 @@ var USP = sqldb.UsersServicesProfiles;
 var USPD = sqldb.UsersServicesProfilesData;
 var utilities = require('./../components/utilities');
 var LastfmAPI = require('lastfmapi');
+const querystring = require('querystring');
+var lfm = new LastfmAPI({
+	'api_key' : '5b597ed85e0390ade25184e7bebc8f20',
+	'secret' : '1306d89f0f4e09bc18a660da7322cb36'
+});
 
 router.get('/manage', function(req, res, next) {
 	var sess = req.session;
 	if(sess.user){
-		//console.log(sess.user.toJSON());
-		console.log(sess.user);
 		ServicesProfiles.findAll().then(servicesProfiles => {
-			console.log(servicesProfiles);
-			res.render('services/manage', { 
-				title: 'MusicoLinktion',
-				servicesProfilesAvailable:servicesProfiles
-			});
+			if(req.query.service != null){
+				res.render('services/manage', { 
+					title: 'MusicoLinktion',
+					servicesProfilesAvailable:servicesProfiles,
+					serviceToLoad : req.query.service
+				});
+			}else{
+				res.render('services/manage', { 
+					title: 'MusicoLinktion',
+					servicesProfilesAvailable:servicesProfiles
+				});
+			}
 		});
 	}else{
 		res.render('login', { title: 'MusicoLinktion' });
@@ -30,14 +41,13 @@ router.get('/manage_lfm', function(req, res, next) {
 	if(sess.user){
 		var hasProfile = false;
 		var profileData = null;
-		console.log('-------------------manage lfm--------------------------');
-		console.log(sess.user);
+		console.log(sess.user.ServicesProfiles);
 		if(sess.user.ServicesProfiles.length == 0){
 			res.render('services/manage_lfm', { 
 				title: 'MusicoLinktion',
 				hasProfile: hasProfile,
-				serviceURL: 'http://www.last.fm/api/auth/?cb=http://dev.rcnetwork.be:8080/services/register_lfm',
-				serviceData: {api_key: '5b597ed85e0390ade25184e7bebc8f20'}
+				serviceURL: config.lfm.auth_url+'cb='+config.lfm.callback_url,
+				serviceData: {api_key: config.lfm.key}
 			});
 		}
 		
@@ -46,28 +56,32 @@ router.get('/manage_lfm', function(req, res, next) {
 		  if(sess.user.ServicesProfiles[i].prefix == 'lfm')
 		  {
 			hasProfile = true;
-			USPD.getByUserAndServiceProfile(sess.user.ServicesProfiles[i].id).then(pd => {
-				res.render('services/manage_lfm', { 
-					title: 'MusicoLinktion',
-					hasProfile: hasProfile,
-					serviceURL: 'http://www.last.fm/api/auth/?cb=http://dev.rcnetwork.be:8080/services/register_lfm',
-					serviceData: {api_key: '5b597ed85e0390ade25184e7bebc8f20'}
-				});
+			console.log(sess.user.ServicesProfiles[i].UsersServicesProfiles.id);
+			USPD.getByUserAndServiceProfile(sess.user.ServicesProfiles[i].UsersServicesProfiles.id).then(pd => {
+				
+				lfm.setSessionCredentials(pd.username, pd.session_key);
+				lfm.user.getInfo(function(err, info){
+					res.render('services/manage_lfm', { 
+						title: 'MusicoLinktion',
+						hasProfile: hasProfile,
+						serviceURL: config.lfm.auth_url+'cb='+config.lfm.callback_url,
+						serviceData: {api_key: config.lfm.key},
+						serviceProfileData: info,
+						userAvatar: info.image[1]["#text"]
+					});
+				})
+				
+				
 			}).catch(err => {
 				res.render('services/manage_lfm', { 
 					title: 'MusicoLinktion',
 					hasProfile: hasProfile,
-					serviceURL: 'http://www.last.fm/api/auth/?cb=http://dev.rcnetwork.be:8080/services/register_lfm',
-					serviceData: {api_key: '5b597ed85e0390ade25184e7bebc8f20'}
+					serviceURL: config.lfm.auth_url+'cb='+config.lfm.callback_url,
+					serviceData: {api_key: config.lfm.key}
 				});
 			});
 		  }
 		}
-		
-		/*res.render('services/manage_lfm', { 
-			title: 'MusicoLinktion',
-			hasProfile: hasProfile,
-		});*/
 	}else{
 		res.render('login', { title: 'MusicoLinktion' });
 	}
@@ -78,10 +92,7 @@ router.get('/register_lfm', function(req, res, next) {
 	if(sess.user){
 		if(req.query.token){
 			
-			var lfm = new LastfmAPI({
-				'api_key' : '5b597ed85e0390ade25184e7bebc8f20',
-				'secret' : '1306d89f0f4e09bc18a660da7322cb36'
-			});
+			
 			
 			lfm.authenticate(req.query.token, function (err, lfm_session) {
 				if (err) { throw err; }
@@ -106,7 +117,11 @@ router.get('/register_lfm', function(req, res, next) {
 						}]).then(() => {
 							sess.user.ServicesProfiles.push(servicesProfiles.dataValues);
 							req.session.user.ServicesProfiles.push(servicesProfiles.dataValues);
-							res.redirect('manage_lfm');
+							
+							const query = querystring.stringify({
+								"service": 'lfm'
+							});
+							res.redirect('manage?' + query);
 						});
 					});
 				});

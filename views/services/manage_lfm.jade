@@ -1,14 +1,22 @@
 h2 Manage Last.fm service #{hasProfile}
-unless hasProfile
+if !hasProfile
 	p No profile detected. Please fill in your Last.fm username for linking your profile
 	input(type="text", id="txtServiceUsername", placeholder="your Last.fm username")
 	input(type='button', id='btnLink', value='Link service profile')
+else
+	p #{serviceProfileData.name}
+	img(src='#{userAvatar}')
+	input(type='button', id='btnLoadLibrary', value='Load Library')
 script.
 	var serviceURL = !{JSON.stringify(serviceURL)};
 	var serviceData = !{JSON.stringify(serviceData)};
+	
 	$(document).ready(function(){
 		$("#btnLink").on("click",function(){
 			openServiceGrant(serviceURL,serviceData);
+		});
+		$("#btnLoadLibrary").on("click",function(){
+			socket.emit('loadlfm', 'Load LFM order');
 		});
 	});
 	

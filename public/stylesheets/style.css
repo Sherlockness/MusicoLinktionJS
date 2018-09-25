@@ -30,14 +30,75 @@ body {
 #divHeaderContent{
 	display: table-row;
 	height:100px;
+	
 }
 #divHeaderTitle{
 	display: table-cell;
+	padding: 5px;
 }
 #divHeaderProfile{
 	display: table-cell;
 	text-align:right;
+	padding: 5px;
 }
+
+#divFooter{
+	background: linear-gradient(#3e3e3e, #191919);
+	color: #eeeeee;
+	width:100%;
+	height:30px;
+	background-repeat: no-repeat;
+	display: table;
+	position: absolute;
+	bottom: 0px;
+}
+
+#divFooterContent{
+	display: table-row;
+	height:30px;
+	
+}
+
+#divMessageNotification{
+	display: table-cell;
+	text-align:right;
+	padding: 5px;
+}
+
+#divMessageStack{
+	display: table;
+	text-align:right;
+	padding: 5px;
+	position:absolute;
+	bottom: 35px;
+	right: 15px;
+	max-height: 225px;
+	width:200px;
+	border: #191919 solid 1px;
+	background: linear-gradient(#3f3f3f, #191919);
+	color:#eeeeee;
+	display: none;
+}
+
+#divMessageRow{
+	display: table-row;
+}
+
+#divMessageCellImg{
+	display: table-cell;
+	height: 20px;
+	width: 20px;
+}
+
+#divMessageCellText{
+	display: table-cell;
+	height: 20px;
+}
+
+#iMessageIcon{
+	font-size: 24px;
+}
+
 a {
   color: #00B7FF;
 }

@@ -3,16 +3,35 @@ html
 	head
 		title= title
 		link(rel='stylesheet', href='/stylesheets/style.css')
+		link(rel='stylesheet', href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css')
 		script(type='text/javascript' src='https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js')
 		script(type='text/javascript' src='/js/api/users.js')
 		script(type='text/javascript' src='/js/navigation.js')
 		script(type='text/javascript' src='/js/services.js')
+		script(type='text/javascript' src='/socket.io/socket.io.js')
 		script.
 			session="#{session}";
 			$(document).ready(function(){
 				$("#aLogout").on("click",function(){
 					logout();
 				});
+				$("#iMessageIcon").on("click",function(){
+					$("#divMessageStack").toggle(1000);
+				});
+			});
+			var socket = io.connect('http://dev.rcnetwork.be:8080');
+			socket.on('messages', function(data) {
+				$("#iMessageIcon").css("color","red");
+				var rowMsg = document.createElement("div");
+				$(rowMsg).attr('class','divMessageRow');
+				var cellImg = document.createElement("div");
+				$(cellImg).attr('class','divMessageCellImg');
+				var cellText = document.createElement("div");
+				$(cellText).attr('class','divMessageCellText');
+				$(cellText).html(data);
+				$(rowMsg).append(cellImg);
+				$(rowMsg).append(cellText);
+				$("#divMessageStack").append(rowMsg);
 			});
 	body
 		div(id='divHeader')
@@ -28,3 +47,8 @@ html
 						a(href='#' id='aLogout') déconnexion
 		div(id='divContent')
 			block content
+		div(id='divFooter')
+			div(id='divFooterContent')
+				div(id='divMessageNotification')
+					i(id='iMessageIcon',class='fa fa-envelope')
+		div(id='divMessageStack')

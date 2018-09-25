@@ -20,10 +20,22 @@ app.set('port', port);
  */
 
 var server = http.createServer(app);
-
+var io = require('socket.io')(server);
 /**
  * Listen on provided port, on all network interfaces.
  */
+io.on('connection', function(client) {  
+	console.log('Client connected...');
+
+	client.on('join', function(data) {
+		console.log(data);
+		client.emit('messages', 'Hello from server');
+  })
+  client.on('loadlfm', function(data) {
+		console.log(data);
+		client.emit('messages', 'Loading LFM Library');
+	})
+});
 
 server.listen(port,function(){
   console.log('Express server listening on %d', port);

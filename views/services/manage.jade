@@ -8,3 +8,8 @@ block content
 					li
 						a(href='#', onclick='navigate(\'divServicesProfilesContent\',\'manage_#{sp.prefix}\')')= sp.name
 			.cell(id='divServicesProfilesContent')
+script.
+	var serviceToLoad = "!{JSON.stringify(serviceToLoad)}";
+	if(serviceToLoad != ""){
+		navigate('divServicesProfilesContent','manage_'+serviceToLoad);
+	}

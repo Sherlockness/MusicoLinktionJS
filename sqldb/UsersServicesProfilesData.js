@@ -35,8 +35,16 @@ module.exports = function(sequelize, DataTypes) {
 						usersServicesProfiles_id: _usersServicesProfilesId,
 					},
 				}).then(function(pd){
-					console.log(pd);
-					resolve(pd);
+					var result = new Object();
+					for(var i=0;i<pd.length;i++){
+						
+						var plainPD = pd[i].get({
+							plain: true
+						});
+						result[plainPD.key] = plainPD.value;
+					}
+					
+					resolve(result);
 				});
 			})
 		}

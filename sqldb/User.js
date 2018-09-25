@@ -31,6 +31,7 @@ module.exports = function(sequelize, DataTypes) {
 			//User.hasMany(models.OAuthClient);
 			console.log('User.belongsToMany(models.ServicesProfiles');
 			User.belongsToMany(models.ServicesProfiles, { through: models.UsersServicesProfiles , foreignKey: 'user_id', otherKey: 'service_profile'});
+			User.hasMany(models.UsersServicesProfiles, { foreignKey: 'user_id', source_key: 'id' });
 		},
 		exists: function(vUsername){
 			return new Promise((resolve,reject) => {
@@ -182,7 +183,8 @@ module.exports = function(sequelize, DataTypes) {
 					where: {
 						username: _user.username
 					},
-					include: [{
+					include: [
+					{
 						model: models.ServicesProfiles,
 						attributes: ["id","prefix", "name"]
 					}]
@@ -196,11 +198,18 @@ module.exports = function(sequelize, DataTypes) {
 						var plainU = u.get({
 							plain: true
 						});
-						console.log(plainU);
-						/*var plainSP = plainU.UsersServicesProfiles.get({
-							plain: true
-						});
-						console.log(plainSP);*/
+						console.log(u.ServicesProfiles.length);
+						var tmpSP = [];
+						for(var i=0;i<u.ServicesProfiles.length;i++){
+							var up = u.ServicesProfiles[i].get({
+								plain: true
+							});
+							tmpSP.push(up);
+						}
+						
+						
+						plainU.ServicesProfiles = tmpSP;
+
 						resolve(plainU);
 					}
 				});
