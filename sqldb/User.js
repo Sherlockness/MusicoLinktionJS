@@ -186,7 +186,13 @@ module.exports = function(sequelize, DataTypes) {
 					include: [
 					{
 						model: models.ServicesProfiles,
-						attributes: ["id","prefix", "name"]
+						attributes: ["id","prefix", "name"],
+						include:[
+							{
+								model: models.UsersServicesProfilesData,
+								attributes: ["key","value"]
+							}
+						]
 					}]
 				}).spread(function(u,created){
 					if(u === null){

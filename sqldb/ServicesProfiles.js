@@ -25,7 +25,8 @@ module.exports = function(sequelize, DataTypes) {
     classMethods: {
 		associate: function associate(models) {
 			console.log('ServicesProfiles.belongsToMany(models.User');
-			ServicesProfiles.belongsToMany(models.User, { through: models.UsersServicesProfiles , foreignKey: 'service_profile', otherKey: 'user_id'});
+      ServicesProfiles.belongsToMany(models.User, { through: models.UsersServicesProfiles , foreignKey: 'service_profile', otherKey: 'user_id'});
+      ServicesProfiles.belongsToMany(models.UsersServicesProfilesData, { through: models.UsersServicesProfiles , foreignKey: 'service_profile', otherKey: 'id',});
 		},
     },
   });

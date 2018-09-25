@@ -1,19 +1,12 @@
-h2 Manage Last.fm service #{hasProfile}
+h2 Manage Discogs service #{hasProfile}
 if !hasProfile
-	p No profile detected. Please fill in your Last.fm username for linking your profile
-	input(type="text", id="txtServiceUsername", placeholder="your Last.fm username")
+	p No profile detected. Please fill in your Discogs username for linking your profile
+	input(type="text", id="txtServiceUsername", placeholder="your Discogs username")
 	input(type='button', id='btnLink', value='Link service profile')
-else
-	p #{serviceProfileData.name}
-	img(src='#{userAvatar}')
-	input(type='button', id='btnLoadLibrary', value='Load Library')
 script.
 	var serviceURL = !{JSON.stringify(serviceURL)};
 	var serviceData = !{JSON.stringify(serviceData)};
 	
-	function funcTwo(input, callback) {
-		callback(null, input);
-	}
 	$(document).ready(function(){
 		$("#btnLink").on("click",function(){
 			openServiceGrant(serviceURL,serviceData);

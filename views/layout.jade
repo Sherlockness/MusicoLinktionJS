@@ -3,7 +3,7 @@ html
 	head
 		title= title
 		link(rel='stylesheet', href='/stylesheets/style.css')
-		link(rel='stylesheet', href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css')
+		link(rel='stylesheet', href='https://use.fontawesome.com/releases/v5.3.1/css/all.css', integrity='sha384-mzrmE5qonljUremFsqc01SB46JvROS7bZs3IO2EmfFsd15uHvIt+Y8vEf7N7fWAU', crossorigin='anonymous')
 		script(type='text/javascript' src='https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js')
 		script(type='text/javascript' src='/js/api/users.js')
 		script(type='text/javascript' src='/js/navigation.js')
@@ -26,12 +26,15 @@ html
 				$(rowMsg).attr('class','divMessageRow');
 				var cellImg = document.createElement("div");
 				$(cellImg).attr('class','divMessageCellImg');
+				var iImg = document.createElement("i");
+				$(iImg).attr("class","fa fa-bullhorn");
+				$(cellImg).append(iImg);
 				var cellText = document.createElement("div");
 				$(cellText).attr('class','divMessageCellText');
 				$(cellText).html(data);
 				$(rowMsg).append(cellImg);
 				$(rowMsg).append(cellText);
-				$("#divMessageStack").append(rowMsg);
+				$("#divMessageStackTable").append(rowMsg);
 			});
 	body
 		div(id='divHeader')
@@ -49,6 +52,10 @@ html
 			block content
 		div(id='divFooter')
 			div(id='divFooterContent')
+				div(id='divServicesJobs')
+					div(id='divJobs_lfm')
+						i(id='iServicesIcon_lfm',class='fab fa-lastfm',style='font-size:24px;')
 				div(id='divMessageNotification')
 					i(id='iMessageIcon',class='fa fa-envelope')
 		div(id='divMessageStack')
+			div(id='divMessageStackTable')

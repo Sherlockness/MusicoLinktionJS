@@ -25,7 +25,8 @@ module.exports = function(sequelize, DataTypes) {
     classMethods: {
 		associate: function associate(models) {
 			//User.hasMany(models.OAuthClient);
-			UsersServicesProfilesData.hasOne(models.UsersServicesProfiles, {sourceKey: 'usersServicesProfiles_id', foreignKey: 'id'});
+			//UsersServicesProfilesData.hasOne(models.UsersServicesProfiles, {sourceKey: 'usersServicesProfiles_id', foreignKey: 'id'});
+			UsersServicesProfilesData.belongsTo(models.UsersServicesProfiles, {sourceKey: 'usersServicesProfiles_id', foreignKey: 'id'});
 		},
 		
 		getByUserAndServiceProfile: function(_usersServicesProfilesId){

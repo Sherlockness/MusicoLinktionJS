@@ -80,17 +80,22 @@ body {
 	display: none;
 }
 
-#divMessageRow{
+#divMessageStackTable{
+	display: table;
+}
+
+.divMessageRow{
 	display: table-row;
 }
 
-#divMessageCellImg{
+.divMessageCellImg{
 	display: table-cell;
 	height: 20px;
 	width: 20px;
+	padding-right: 10px;
 }
 
-#divMessageCellText{
+.divMessageCellText{
 	display: table-cell;
 	height: 20px;
 }
