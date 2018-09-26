@@ -3,6 +3,9 @@ if !hasProfile
 	p No profile detected. Please fill in your Discogs username for linking your profile
 	input(type="text", id="txtServiceUsername", placeholder="your Discogs username")
 	input(type='button', id='btnLink', value='Link service profile')
+else
+	p Welcome #{serviceProfileData.username} to your discogs profile
+	img(src='#{userAvatar}')
 script.
 	var serviceURL = !{JSON.stringify(serviceURL)};
 	var serviceData = !{JSON.stringify(serviceData)};

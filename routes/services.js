@@ -13,9 +13,10 @@ var Discogs = require('disconnect').Client;
 var DiscogsRequestData;
 const querystring = require('querystring');
 var lfm = new LastfmAPI({
-	'api_key' : '5b597ed85e0390ade25184e7bebc8f20',
-	'secret' : '1306d89f0f4e09bc18a660da7322cb36'
+	'api_key' : config.lfm.key,
+	'secret' : config.lfm.secret
 });
+var async = require("async");
 
 router.get('/manage', function(req, res, next) {
 	var sess = req.session;
@@ -59,7 +60,6 @@ router.get('/manage_lfm', function(req, res, next) {
 		  if(sess.user.ServicesProfiles[i].prefix == 'lfm')
 		  {
 			hasProfile = true;
-			console.log(sess.user.ServicesProfiles[i].UsersServicesProfiles.id);
 			USPD.getByUserAndServiceProfile(sess.user.ServicesProfiles[i].UsersServicesProfiles.id).then(pd => {
 				
 				lfm.setSessionCredentials(pd.username, pd.session_key);
@@ -95,7 +95,6 @@ router.get('/manage_disc', function(req, res, next) {
 	if(sess.user){
 		var hasProfile = false;
 		var profileData = null;
-		console.log(sess.user.ServicesProfiles);
 		if(sess.user.ServicesProfiles.length == 0){
 			authDiscogs(function(err,requestData){
 				res.render('services/manage_disc', { 
@@ -109,36 +108,32 @@ router.get('/manage_disc', function(req, res, next) {
 		
 		for(var i = 0; i < sess.user.ServicesProfiles.length; i++)
 		{
-		  if(sess.user.ServicesProfiles[i].prefix == 'disc')
-		  {
-			hasProfile = true;
-			console.log(sess.user.ServicesProfiles[i].UsersServicesProfiles.id);
-			USPD.getByUserAndServiceProfile(sess.user.ServicesProfiles[i].UsersServicesProfiles.id).then(pd => {
-				
-				/*lfm.setSessionCredentials(pd.username, pd.session_key);
-				lfm.user.getInfo(function(err, info){
-					res.render('services/manage_lfm', { 
-						title: 'MusicoLinktion',
-						hasProfile: hasProfile,
-						serviceURL: config.lfm.auth_url+'cb='+config.lfm.callback_url,
-						serviceData: {api_key: config.lfm.key},
-						serviceProfileData: info,
-						userAvatar: info.image[1]["#text"]
-					});
-				})*/
-				
-				
-			}).catch(err => {
-				authDiscogs(function(err,requestData){
-					res.render('services/manage_disc', { 
-						title: 'MusicoLinktion',
-						hasProfile: hasProfile,
-						serviceURL: config.disc.auth_url+'oauth_token='+requestData.token,
-						serviceData: {}
-					});
-				})
-			});
-		  }
+			if(sess.user.ServicesProfiles[i].prefix == 'disc')
+			{
+				hasProfile = true;
+				USPD.getByUserAndServiceProfile(sess.user.ServicesProfiles[i].UsersServicesProfiles.id).then(pd => {
+					var discogsUser = new Discogs().user();
+					discogsUser.getProfile(pd.username,
+						function(err, userData){
+							res.render('services/manage_disc', { 
+								title: 'MusicoLinktion',
+								hasProfile: hasProfile,
+								serviceProfileData: userData,
+								userAvatar: userData.avatar_url
+							});
+						}
+					);
+				}).catch(err => {
+					authDiscogs(function(err,requestData){
+						res.render('services/manage_disc', { 
+							title: 'MusicoLinktion',
+							hasProfile: hasProfile,
+							serviceURL: config.disc.auth_url+'oauth_token='+requestData.token,
+							serviceData: {}
+						});
+					})
+				});
+		  	}
 		}
 		if(!hasProfile){
 			authDiscogs(function(err,requestData){
@@ -215,24 +210,34 @@ router.get('/register_disc', function(req, res, next) {
 						'user_id' : sess.user.id,
 						'service_profile' : servicesProfiles.id
 					}).then(usp => {
-						USPD.bulkCreate([{
-							'usersServicesProfiles_id' : usp.id,
-							'key' : 'token',
-							'value' : accessData.token
-						},
-						{
-							'usersServicesProfiles_id' : usp.id,
-							'key' : 'token_secret',
-							'value' : accessData.tokenSecret
-						}]).then(() => {
-							sess.user.ServicesProfiles.push(servicesProfiles.dataValues);
-							req.session.user.ServicesProfiles.push(servicesProfiles.dataValues);
-							
-							const query = querystring.stringify({
-								"service": 'disc'
+						var dis = new Discogs(accessData);
+						dis.getIdentity(function(err, identityData){
+							USPD.bulkCreate([{
+								'usersServicesProfiles_id' : usp.id,
+								'key' : 'token',
+								'value' : accessData.token
+							},
+							{
+								'usersServicesProfiles_id' : usp.id,
+								'key' : 'token_secret',
+								'value' : accessData.tokenSecret
+							},
+							{
+								'usersServicesProfiles_id' : usp.id,
+								'key' : 'username',
+								'value' : identityData.username
+							}
+							]).then(() => {
+								sess.user.ServicesProfiles.push(servicesProfiles.dataValues);
+								req.session.user.ServicesProfiles.push(servicesProfiles.dataValues);
+								
+								const query = querystring.stringify({
+									"service": 'disc'
+								});
+								res.redirect('manage?' + query);
 							});
-							res.redirect('manage?' + query);
 						});
+						
 					});
 				});
 			}
@@ -261,16 +266,21 @@ router.get('/scan_lfm', function(req, res, next) {
 		{
 		  if(sess.user.ServicesProfiles[i].prefix == 'lfm')
 		  {
+			console.log(i+" - "+sess.user.ServicesProfiles[i].prefix);
 			hasProfile = true;
 			USPD.getByUserAndServiceProfile(sess.user.ServicesProfiles[i].UsersServicesProfiles.id).then(pd => {
+				console.log(" getByUserAndServiceProfile ");
 				lfm.setSessionCredentials(pd.username, pd.session_key);
 				var params = {
 					'user' : pd.username,
 				}
 				lfm.library.getArtists(params, function(err,artists){
-					buildLFMLibrary(artists);
+					buildLFMLibrary(artists,pd).then(r => {
+						console.log(r);
+					});
 				});
 			}).catch(err => {
+				console.log('alaaarm !');
 				console.log(err);
 			});
 		  }
@@ -280,23 +290,84 @@ router.get('/scan_lfm', function(req, res, next) {
 	}
 });
 
-function buildLFMLibrary(artists){
-	var page = artists['@attr'].page;
-	var totalPage = artists['@attr'].totalPage;
-	var totalArtists = artists['@attr'].total;
-	var tabArtists = artists.artist;
-	for(var i=0;i<tabArtists.length;i++){
-		var a = tabArtists[i];
-		Artist.existsByIdLfm(a.mbid).then(dba => {
-			console.log('exists as last fm artist' );
-		}).catch(err => {
-			Artist.existsByName(a.name).then(dba => {
-				console.log('exists with name' );
-			}).catch(err => {
-				console.log('does not exists ... need discogs to validate' );
-			})
-		})
-	}
+function buildLFMLibrary(artists,profileData){
+	return new Promise((resolve,reject) => {
+		var library= "OK";
+		console.log(artists['@attr']);
+		var artistPage = artists['@attr'].page;
+		var artistTotalPage = artists['@attr'].totalPages;
+		var artistTotalCount = artists['@attr'].total;
+		var tabArtists = artists.artist;
+		if(parseInt(artistPage,10) <= parseInt(artistTotalPage,10)){
+			async.eachSeries(tabArtists,function(a,endArtists){
+				console.log('PROCESSING : '+a.name+' | page : '+artistPage);
+				var params = {
+					'user' : profileData.username,
+					'artist':a.name
+				}
+				lfm.user.getArtistTracks(params, function(err, artistTracks){
+					buildLFMArtistLibrary(a,artistTracks,profileData).then(r => {
+						console.log(r);
+						endArtists();
+					})
+				});
+			},function(err){
+				console.log("endArtists page - "+artistPage);
+				if(err != null){
+					console.log(err);
+				}else{
+					var params = {
+						'user' : profileData.username,
+						'page' : parseInt(artistPage,10)+parseInt(1,10)
+					}
+					lfm.library.getArtists(params, function(err,artists){
+						buildLFMLibrary(artists,profileData).then(r => {
+							console.log(r);
+						});
+					});
+				}
+				resolve(library+" "+artistPage);
+			});
+		}else{
+			resolve("end of treatement");
+		}
+		
+	});
+}
+
+function buildLFMArtistLibrary(a,artistTracks,profileData){
+	return new Promise((resolve,reject) => {
+		var tracksPage = artistTracks['@attr'].page;
+		var tracksTotalPage = artistTracks['@attr'].totalPages;
+		var tracksTotalCount = artistTracks['@attr'].total;
+		if(tracksPage <= tracksTotalPage || tracksTotalPage==0){
+			async.eachSeries(artistTracks.track,function(t,endTrack){
+				console.log(t.name);
+				endTrack();
+			},function(err){
+				if(err != null){
+					resolve(r);
+				}else{
+					if(tracksTotalPage != 0){
+						var params = {
+							'user' : profileData.username,
+							'artist':a.name,
+							'page':parseInt(tracksPage,10)+parseInt(1,10)
+						}
+						lfm.user.getArtistTracks(params, function(err, artistTracks){
+							buildLFMArtistLibrary(artistTracks,profileData).then(r => {
+								console.log(r);
+							})
+						});
+					}
+				}
+				console.log("end tracks of artist");
+				resolve("OK Tracks - "+tracksPage);
+			});
+		}else{
+			resolve("end of tracks treatement - "+tracksPage+"/"+tracksTotalPage);
+		}
+	});
 }
 
 function authDiscogs(callback){
