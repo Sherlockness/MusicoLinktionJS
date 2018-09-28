@@ -97,6 +97,22 @@ module.exports = function(sequelize, DataTypes) {
 				});
 			})
 		},
+		getById: function(vId){
+			return new Promise((resolve,reject) => {
+				User.findOne({
+					where: {id: vId}
+				}).then(u => {
+					if(u === null){
+						reject({
+							status:'error',
+							message:'user not found'
+						});
+					}else{
+						resolve(u);
+					}
+				});
+			})
+		},
 		getByMail: function(vMail){
 			return new Promise((resolve,reject) => {
 				User.findOne({
