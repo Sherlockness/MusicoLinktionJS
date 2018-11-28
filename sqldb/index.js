@@ -26,6 +26,8 @@ db.ServicesProfiles = db.sequelize.import('./ServicesProfiles');
 db.UsersServicesProfiles = db.sequelize.import('./UsersServicesProfiles');
 db.UsersServicesProfilesData = db.sequelize.import('./UsersServicesProfilesData');
 db.Artist = db.sequelize.import('./Artist');
+db.Album = db.sequelize.import('./Album');
+db.AlbumsArtists = db.sequelize.import('./AlbumsArtists');
 
 /* Associations */
 /* Services Profiles and Users */

@@ -210,6 +210,7 @@ router.get('/register_disc', function(req, res, next) {
 						'user_id' : sess.user.id,
 						'service_profile' : servicesProfiles.id
 					}).then(usp => {
+						console.log(accessData);
 						var dis = new Discogs(accessData);
 						dis.getIdentity(function(err, identityData){
 							USPD.bulkCreate([{
