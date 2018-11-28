@@ -1,5 +1,6 @@
 var config = require('../config');
 var sqldb = require('./../sqldb');
+var libraryModel = require('./../sqldb/Library');
 var User = sqldb.User;
 var ServicesProfiles = sqldb.ServicesProfiles;
 var USP = sqldb.UsersServicesProfiles;
@@ -8,19 +9,32 @@ var Artist = sqldb.Artist;
 var utilities = require('./../components/utilities');
 var LastfmAPI = require('lastfmapi');
 var Discogs = require('disconnect').Client;
+var Synchronizer = require('./../utilities/synchronizer');
+
 var authDiscogsObj = null;
+var discogsDB=null;
 const querystring = require('querystring');
+const winston = require('winston');
+
+const logger = winston.createLogger({
+    level: 'info',
+    format: winston.format.json(),
+    transports: [
+      new winston.transports.Console(),
+      new winston.transports.File({ filename: 'logs/lastfm_job.log.json' })
+    ]
+});
+
 var lfm = new LastfmAPI({
 	'api_key' : config.lfm.key,
 	'secret' : config.lfm.secret
 });
 var async = require("async");
+var albumTraite = [];
 
-
+var library = new libraryModel.Library();
 var user_id = process.argv[2];
 var job = process.argv[3];
-console.log(user_id);
-console.log(job);
 switch(job){
     case 'getFullLibrary':
         getFullLibrary(user_id);
@@ -41,11 +55,15 @@ function getFullLibrary(userId){
                 if(sp.prefix == 'disc')
 		        {
                     USPD.getByUserAndServiceProfile(sp.UsersServicesProfiles.id).then(pd => {
-                        var accessData = {
-                            'oauth_token':pd.token,
-                            'oauth_token_secret':pd.tokenSecret
-                        }
+                        var accessData = { method: 'oauth',
+                        level: 2,
+                        consumerKey: 'xshJxPkzcucpFnYMpIWj',
+                        consumerSecret: 'fbcbwbXyeYzkwIJykPVFmvCllypTTxYR',
+                        token: 'uVbVIaTgYYTXmuJehpggTSyoZJSsoMvCHHdKePEA',
+                        tokenSecret: 'gDjWWVtVqeHwMrIxOkxVpaEjJqYWHtDRYAOSTKFx' }
                         authDiscogsObj = new Discogs(accessData);
+                        discogsDB = authDiscogsObj.database();
+                        logger.log('info', 'DiscogsDatabase', discogsDB);
                         endServicesProfiles();
                     }).catch(err => {
                         console.log(err);
@@ -55,9 +73,7 @@ function getFullLibrary(userId){
 		        if(sp.prefix == 'lfm')
 		        {
 			        USPD.getByUserAndServiceProfile(sp.UsersServicesProfiles.id).then(pd => {
-                        console.log(" getByUserAndServiceProfile ");
                         lfm.setSessionCredentials(pd.username, pd.session_key);
-                        console.log(lfm);
                         endServicesProfiles();
 			        }).catch(err => {
 				        console.log('alaaarm !');
@@ -68,7 +84,19 @@ function getFullLibrary(userId){
                 
 		    },function(err){
                 buildLFMLibrary(0).then(r => {
-                    console.log(r);
+                    var MCLKSync = new Synchronizer.MCLKSynchronizer(userId,library,'lfm');
+                    MCLKSync.SyncFromDatabase().then(l => {
+                        var DiscogsSync = new Synchronizer.DiscogsSynchronizer(userId,library,discogsDB);
+                        DiscogsSync.Sync().then(ld => {
+                            var fs = require('fs');
+                            fs.writeFile("/tmp/lfmLibrary.json", JSON.stringify(ld, null, 2) , 'utf-8', function(err) {
+                                if(err) {
+                                    return console.log(err);
+                                }
+                                console.log("The file was saved!");
+                            });
+                        })
+                    });
                 });
             });
         });
@@ -79,13 +107,12 @@ function getFullLibrary(userId){
 
 function buildLFMLibrary(artistPage){
 	return new Promise((resolve,reject) => {
-        console.log(lfm);
 		var params = {
             'user' : lfm.sessionCredentials.username,
             'page' : parseInt(artistPage,10)+parseInt(1,10)
         }
         lfm.library.getArtists(params, function(err,artists){
-            if(artists.artist.length != 0){
+            if(artists.artist.length != 0 && params.page < 2){
                 artistPage = artists['@attr'].page;
                 async.eachSeries(artists.artist,function(a,endArtists){
                     console.log('PROCESSING : '+a.name+' | page : '+artistPage);
@@ -118,7 +145,6 @@ function buildLFMArtistLibrary(a,tracksPage){
 	return new Promise((resolve,reject) => {
         var querystring = require("querystring");
         var encodedArtistName = querystring.escape(a.name);
-        console.log(encodedArtistName);
         var params = {
             'user' : lfm.sessionCredentials.username,
             'artist':encodedArtistName,
@@ -129,18 +155,24 @@ function buildLFMArtistLibrary(a,tracksPage){
                 tracksPage = artistTracks['@attr'].page;
                 async.eachSeries(artistTracks.track,function(t,endTrack){
                     /* TRACK PROCESSING */
-                    console.log(a.name+" - "+t.album['#text']);
-                    var query = {
-                        artist: a.name,
-                        releaseTitle: t.album['#text'],
-                        type: 'master'
-                    }
-                    var discogsDB = authDiscogsObj.database();
-                    discogsDB.search(query).then(function(result){ 
-                        console.log(result);
+                    //console.log(t);
+                    if(albumTraite.indexOf(a.name+" - "+t.album['#text']) === -1){
+                        if(!library.artists.hasOwnProperty(a.name)){
+                            library.artists[a.name] = new libraryModel.LibraryArtist({
+                                name:a.name,
+                                id_lfm:a.mbid
+                            });
+                        }
+                        library.artists[a.name].Albums[t.album['#text']] = new libraryModel.LibraryAlbum({
+                            title:t.album['#text'],
+                            id_lfm:t.album.mbid
+                        });
+                        console.log("album traite : "+a.name+" - "+t.album['#text']);
+                        albumTraite.push(a.name+" - "+t.album['#text']);
                         endTrack();
-                    })
-                    endTrack();
+                    }else{
+                        endTrack();
+                    }
                 },function(err){
                     if(err != null){
                         resolve(err);
