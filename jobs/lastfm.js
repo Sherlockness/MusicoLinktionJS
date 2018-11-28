@@ -57,10 +57,10 @@ function getFullLibrary(userId){
                     USPD.getByUserAndServiceProfile(sp.UsersServicesProfiles.id).then(pd => {
                         var accessData = { method: 'oauth',
                         level: 2,
-                        consumerKey: 'xshJxPkzcucpFnYMpIWj',
-                        consumerSecret: 'fbcbwbXyeYzkwIJykPVFmvCllypTTxYR',
-                        token: 'uVbVIaTgYYTXmuJehpggTSyoZJSsoMvCHHdKePEA',
-                        tokenSecret: 'gDjWWVtVqeHwMrIxOkxVpaEjJqYWHtDRYAOSTKFx' }
+                        consumerKey: config.disc.key,
+                        consumerSecret: config.disc.secret,
+                        token: pd.token,
+                        tokenSecret: pd.token_secret }
                         authDiscogsObj = new Discogs(accessData);
                         discogsDB = authDiscogsObj.database();
                         logger.log('info', 'DiscogsDatabase', discogsDB);
