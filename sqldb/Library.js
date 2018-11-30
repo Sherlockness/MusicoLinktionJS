@@ -8,6 +8,7 @@ function ArtistLibrary(_artist){
         id_lfm:_artist.id_lfm
     });
     this.Albums = {};
+    this.SubArtists = {};
 }
 var ModelAlbum = sqldb.Album;
 function AlbumLibrary(_album) {

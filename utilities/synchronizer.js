@@ -17,10 +17,12 @@ const logger = winston.createLogger({
       new winston.transports.File({ filename: 'logs/synchronizer.log.json' })
     ]
 });
+
 function DiscogsSynchronizer(userId,library,discogsDB){
     this.DiscogsDB = discogsDB;
     this.LibraryToSync = library;
     this.UserId = userId;
+    this.ArtistToRemove = [];
     var self = this;
 
     this.Sync = function(){
@@ -41,8 +43,11 @@ function DiscogsSynchronizer(userId,library,discogsDB){
                                 data.results[0]);
                             albumToSync.Album.id_disc = data.results[0].id;
                             albumToSync.Album.disc_type = data.results[0].type;
-                            console.log(rateLimit);
-                            endLibraryAlbum();
+                            this.SyncArtist(albumToSync,data.results[0].artists).then(syncedArtist => {
+                                artistToSync.SubArtists = syncedArtist;
+                                endLibraryAlbum();
+                            });
+                            
                         }else{
                             params = {
                                 artist: artistToSync.Artist.name,
@@ -76,6 +81,30 @@ function DiscogsSynchronizer(userId,library,discogsDB){
             
         });
     }
+
+    this.SyncArtist = function(_albumToSync,_discogsArtists){
+        return new Promise((resolve,reject) => {
+            var results = {
+                name:"",
+                subArtists:[]
+            };
+            if(_discogsArtists.length > 1){
+                async.eachSeries(_discogsArtists.artists,function(da,endDiscogsArtist){
+                    results.name+=da.name+" "+da.join;
+                    results.subArtists.push(new libraryModel.LibraryArtist({
+                        name:da.name,
+                        id_disc:da.id
+                    }));
+                    endDiscogsArtist();
+                },function(){
+                    results.name.replace(/^\,+|\,+$/g, '').trim();
+                    resolve(results);
+                });
+            }else{
+                resolve(results);
+            }
+        });
+    }
 }
 function MCLKSynchronizer(userId,library,sourceProfilePrefix){
     this.LibraryToSync = library;
@@ -99,7 +128,7 @@ function MCLKSynchronizer(userId,library,sourceProfilePrefix){
                     },function(err,rep){
                         async.eachSeries(self.LibraryToSync.artists,function(artistToSync,endLibraryArtist){
                             if(artistToSync.Artist["id_"+self.SourceProfilePrefix] != ""){
-                                /* search for artist in database with its source id (lfm,disc,...) */
+                                /* search for artist in database with its source id (lfm,disc,...)  */
                                 artistToSync.Artist["existsBy"+self.SourceProfilePrefix.capitalize()]().then(artistDB => {
                                     if(artistToSync.Artist.name != artistDB.name){
                                         self.ArtistToRemove.push(artistToSync.Artist.name);

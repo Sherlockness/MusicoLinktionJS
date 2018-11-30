@@ -49,7 +49,7 @@ function getFullLibrary(userId){
 		    if(u.ServicesProfiles.length == 0){
 			    console.log('Profile not available');
 		    }
-        
+            /* Test */
             async.eachSeries(u.ServicesProfiles,function(sp,endServicesProfiles){
                 console.log(sp.prefix);
                 if(sp.prefix == 'disc')
@@ -184,7 +184,7 @@ function buildLFMArtistLibrary(a,tracksPage){
                             }
                         })
                     }
-                    console.log("end tracks of artist---------------------------------------------------");
+                    console.log("end tracks of artist--------------------------------------------------- ");
                 });
                 
             }else{
