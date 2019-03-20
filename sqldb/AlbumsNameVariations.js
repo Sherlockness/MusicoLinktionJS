@@ -6,19 +6,24 @@ var utilities = require('../components/utilities');
 
 
 module.exports = function(sequelize, DataTypes) {
-  var ArtistsFathers = sequelize.define('ArtistsFathers',  {
-    artist_id: {
+  var AlbumsNameVariations = sequelize.define('AlbumsNameVariations',  {
+    id: {
+        type: DataTypes.BIGINT,
+        primaryKey: true,
+        allowNull: false,
+        autoIncrement: true,
+    },
+    album_id: {
       type: DataTypes.BIGINT,
-      primaryKey: true,
-      allowNull: false,
-		},
-		father_id: {
-      type: DataTypes.BIGINT,
-      primaryKey: true,
+      primaryKey: false,
       allowNull: false,
     },
-  }, {
-    tableName: 'mclk_artists_fathers', // oauth_users 
+    service_type: DataTypes.STRING(5),
+    service_id: DataTypes.STRING(100),
+    title: DataTypes.STRING(1000),
+  }, 
+  {
+    tableName: 'mclk_albumsNameVariations', // oauth_users 
     timestamps: false,
     underscored: true,
 
@@ -26,7 +31,7 @@ module.exports = function(sequelize, DataTypes) {
 		/*associate: function associate(models) {
 			Artist.belongsToMany(models.Artist, { as: 'FatherArtists', through: models.ArtistsFathers , foreignKey: 'artitst_id', otherKey: 'father_id'});
 			Artist.hasMany(model.Artist)
-		} */
+		}*/
 	},
 
 	instanceMethods: {
@@ -34,6 +39,6 @@ module.exports = function(sequelize, DataTypes) {
 	}
   });
 
-  return ArtistsFathers;
+  return AlbumsNameVariations;
 }
 

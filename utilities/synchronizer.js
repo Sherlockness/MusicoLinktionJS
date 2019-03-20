@@ -1,74 +1,206 @@
-var config = require('../config');
+require("../utilities/prototyping");
+// model dependencies
 var sqldb = require('../sqldb');
 var libraryModel = require('../sqldb/Library');
 var User = sqldb.User;
-var ServicesProfiles = sqldb.ServicesProfiles;
-var USP = sqldb.UsersServicesProfiles;
-var USPD = sqldb.UsersServicesProfilesData;
-var async = require("async");
-require("../utilities/prototyping");
-var Discogs = require('disconnect').Client;
+var ArtistsNameVariations = sqldb.ArtistsNameVariations;
+var AlbumsNameVariations = sqldb.AlbumsNameVariations;
+var ArtistsFathers = sqldb.ArtistsFathers;
+
+// log dependencies
+var d = new Date();
+var m = d.getMonth()+1;
+var y = d.getFullYear();
+var dy = d.getDate();
+var h = d.getHours();
+var i = d.getMinutes();
+var s = d.getSeconds();
+var now = y.toString()+m.toString()+dy.toString()+"-"+h+"_"+i+"_"+s;
 const winston = require('winston');
 const logger = winston.createLogger({
-    level: 'info',
     format: winston.format.json(),
     transports: [
-      new winston.transports.Console(),
-      new winston.transports.File({ filename: 'logs/synchronizer.log.json' })
+      new winston.transports.File({ filename: 'logs/synchronizer_'+now+'.log.json' })
     ]
 });
 
-function DiscogsSynchronizer(userId,library,discogsDB){
+// module dependencies
+var async = require("async");
+var levenshtein = require('fast-levenshtein');
+var Enumerable = require('linq');
+
+function Ranker(album){
+    this.Rank = 0;
+    this.Album = album;
+}
+
+function DiscogsSynchronizer(userId,library,discogsDB,sourceProfilePrefix){
     this.DiscogsDB = discogsDB;
     this.LibraryToSync = library;
     this.UserId = userId;
-    this.ArtistToRemove = [];
+    this.SourceProfilePrefix = sourceProfilePrefix;
+    this.LibraryElementsToRemove = [];
     var self = this;
 
+    this.CleanLibrary = function(){
+        return new Promise((resolve,reject) => {
+            console.log("Clean it");
+            async.eachSeries(self.LibraryElementsToRemove,function(element,endRemoveElement){
+                console.log(element);
+                async.eachSeries(element,function(e,endElement){
+                    console.log(e.artistName);
+                    delete self.LibraryToSync.artists[e.artistName].Albums[e.albumTitle];
+                    if(Object.keys(self.LibraryToSync.artists[e.artistName].Albums).length == 0){
+                        delete self.LibraryToSync.artists[e.artistName];
+                    }
+                    endElement();
+                },function(){
+                    endRemoveElement();
+                });
+                
+            },function(){
+                resolve("done");
+            });
+        });
+    }
+
+    this.FindBestMatch = function(_collection,_comparisonProperty,_comparisonElement){
+        return new Promise((resolve,reject) => {
+            var rankingResults = [];
+            async.eachSeries(_collection,function(element,endRanking){
+                var ranker = new Ranker(element);
+                ranker.rank = levenshtein.get(element[_comparisonProperty],_comparisonElement);
+                var threshold = 1;
+                if(element[_comparisonProperty].length > _comparisonElement.length)
+                {
+                    threshold = element[_comparisonProperty].length;
+                }else{
+                    threshold = _comparisonElement.length;
+                }
+                var percentValue = 100 / threshold;
+                var differencePercentage = ranker.rank * percentValue;
+                ranker.score = 100 - differencePercentage;
+                rankingResults.push(ranker);
+                endRanking();
+            },function(){
+                var bestMatch = Enumerable.from(rankingResults).orderByDescending("$.score",function(key,value){
+                    return value;
+                }).first();
+                resolve(bestMatch.Album);
+            });
+        });   
+    }
+
+    this.GetMasterRelease = function(_masterReleaseId){
+        return new Promise((resolve,reject) => {
+            self.DiscogsDB.getMaster(_masterReleaseId,function(err, data){
+                if(!err){
+                    resolve(data);
+                }else{
+                    reject(err);
+                }
+            });
+        });
+    }
+
+    this.GetRelease = function(_releaseId){
+        return new Promise((resolve,reject) => {
+            self.DiscogsDB.getRelease(_releaseId,function(err, data){
+                if(!err){
+                    resolve(data);
+                }else{
+                    reject(err);
+                }
+            });
+        });
+    }
+
+    this.SearchForResults = function(_query,_params){
+        return new Promise((resolve,reject) => {
+            self.DiscogsDB.search(_query,_params,function(err, data, rateLimit){
+                if(data.results == null){
+                    logger.log('info', 
+                                'Discogs Search failed', 
+                                _query,_params,err);
+                    reject('Discogs Search failed');
+                }else{
+                    resolve(data.results);
+                }
+            });
+        });
+    }
+    // test
     this.Sync = function(){
         return new Promise((resolve,reject) => {
             async.eachSeries(self.LibraryToSync.artists,function(artistToSync,endLibraryArtist){
                 async.eachSeries(artistToSync.Albums,function(albumToSync,endLibraryAlbum){
-                    console.log(albumToSync);
+                    console.log("____________________________________________________________________________");
+                    console.log("Synchro discogs for "+artistToSync.Artist.name+" - "+albumToSync.Album.title);
+                    console.log("____________________________________________________________________________");
                     var query = albumToSync.Album.title;
                     var params = {
                         artist: artistToSync.Artist.name,
                         releaseTitle: albumToSync.Album.title,
                         type: 'master'
                     }
-                    self.DiscogsDB.search(query,params,function(err, data, rateLimit){
-                        if(data.results.length > 0){
-                            logger.log('info', 
-                                'Discogs MASTER for '+artistToSync.Artist.name+" - "+albumToSync.Album.title, 
-                                data.results[0]);
-                            albumToSync.Album.id_disc = data.results[0].id;
-                            albumToSync.Album.disc_type = data.results[0].type;
-                            this.SyncArtist(albumToSync,data.results[0].artists).then(syncedArtist => {
-                                artistToSync.SubArtists = syncedArtist;
-                                endLibraryAlbum();
-                            });
-                            
-                        }else{
-                            params = {
-                                artist: artistToSync.Artist.name,
-                                releaseTitle: albumToSync.Album.title,
-                                type: 'release'
-                            }
-                            self.DiscogsDB.search(query,params,function(err, data, rateLimit){
-                                if(data.results.length > 0){
-                                    logger.log('info', 
-                                        'Discogs RELEASE for '+artistToSync.Artist.name+" - "+albumToSync.Album.title, 
-                                        data.results[0]);
-                                    albumToSync.Album.id_disc = data.results[0].id;
-                                    albumToSync.Album.disc_type = data.results[0].type;
-                                    console.log(rateLimit);
-                                }else{
-                                    logger.log('info', 
-                                        'Discogs NO RESULTS for '+artistToSync.Artist.name+" - "+albumToSync.Album.title,"");
+
+                    console.log("Searching... ");
+
+                    self.SearchForResults(query,params).then(r => {
+                        self.FindBestMatch(r,"title",artistToSync.Artist.name+" - "+albumToSync.Album.title).then(bestMatch => {
+                            self.GetMasterRelease(bestMatch.id).then(masterRelease => {
+                                if(masterRelease.artists != null){
+                                    self.SyncElements(artistToSync,albumToSync,masterRelease,params.type).then(elementToRemove => {
+                                        self.LibraryElementsToRemove.push(elementToRemove);
+                                        endLibraryAlbum();
+                                    });
                                 }
+                            }).catch(err => {
+                                logger.log('info', 
+                                'Get Master Release Failed', 
+                                err);
                                 endLibraryAlbum();
                             });
-                        }
+                        }).catch(err => {
+                            logger.log('info', 
+                            'Find Master Best Match Failed', 
+                            err);
+                            endLibraryAlbum();
+                        });
+                    }).catch(err => {
+                        params = {
+                            artist: artistToSync.Artist.name,
+                            releaseTitle: albumToSync.Album.title,
+                            type: 'release'
+                        };
+                        self.SearchForResults(query,params).then(r => {
+                            self.FindBestMatch(r,"title",artistToSync.Artist.name+" - "+albumToSync.Album.title).then(bestMatch => {
+                                self.getRelease(bestMatch.id).then(release => {
+                                    if(release.artists != null){
+                                        self.SyncElements(artistToSync,albumToSync,release,params.type).then(elementToRemove => {
+                                            self.LibraryElementsToRemove.push(elementToRemove);
+                                            endLibraryAlbum();
+                                        });
+                                    }
+                                }).catch(err => {
+                                    logger.log('info', 
+                                    'Get Release Failed', 
+                                    err);
+                                    endLibraryAlbum();
+                                })
+                            }).catch(err => {
+                                logger.log('info', 
+                                    'Find Release Best Match Failed', 
+                                    err);
+                                endLibraryAlbum();
+                            });
+                        }).catch(err => {
+                            logger.log('info', 
+                                    'Search Release Failed', 
+                                    err);
+                            endLibraryAlbum();
+                        });
+                        endLibraryAlbum();
                     });
                 },
                 function(){
@@ -76,36 +208,135 @@ function DiscogsSynchronizer(userId,library,discogsDB){
                 });
             },
             function(){
+                self.CleanLibrary();
                 resolve(self.LibraryToSync);
             });
             
         });
     }
-
-    this.SyncArtist = function(_albumToSync,_discogsArtists){
+    
+    this.SyncElements = function(_artistToSync,_albumToSync,_discogsMaster,_discType){
         return new Promise((resolve,reject) => {
             var results = {
                 name:"",
-                subArtists:[]
+                artists:[],
+                service_type:self.SourceProfilePrefix,
+                service_id:_artistToSync.Artist["id_"+self.SourceProfilePrefix]
             };
-            if(_discogsArtists.length > 1){
-                async.eachSeries(_discogsArtists.artists,function(da,endDiscogsArtist){
-                    results.name+=da.name+" "+da.join;
-                    results.subArtists.push(new libraryModel.LibraryArtist({
-                        name:da.name,
-                        id_disc:da.id
-                    }));
-                    endDiscogsArtist();
-                },function(){
-                    results.name.replace(/^\,+|\,+$/g, '').trim();
-                    resolve(results);
+            var toRemove = [];
+            async.eachSeries(_discogsMaster.artists,function(da,endDiscogsArtist){
+                results.name+=da.name+" "+da.join+" ";
+                var subArtist = new libraryModel.LibraryArtist({
+                    name:da.name
                 });
-            }else{
-                resolve(results);
-            }
+                subArtist.Artist.id_disc = da.id;
+                results.artists.push(subArtist);
+                endDiscogsArtist();
+            },function(){
+                results.name = results.name.replace(/^\,+|\,+$/g, '').trim();
+                console.log(_artistToSync.Artist.name+" != "+results.name);
+                if(_artistToSync.Artist.name != results.name){
+                    toRemove.push({
+                        artistName:_artistToSync.Artist.name,
+                        albumTitle:_albumToSync.Album.title
+                    });
+                    // Fill library with new official artists
+                    if(!self.LibraryToSync.artists.hasOwnProperty(results.name)){
+                        self.LibraryToSync.artists[results.name] = new libraryModel.LibraryArtist({
+                            name:results.name
+                        });
+                        console.log(results.artists.length);
+                        if(results.artists.length > 1){
+                            self.LibraryToSync.artists[results.name].SubArtists = results.artists;
+                        }else{
+                            if(results.artists.length == 1){
+                                self.LibraryToSync.artists[results.name].Artist.id_disc = results.artists[0].id_disc;
+                            }
+                        }
+                    }
+                    
+                    var nameVariationExists = Enumerable.from(self.LibraryToSync.artists[results.name].NameVariations).where(function(nv){return nv.name == _artistToSync.Artist.name},function(key,value){
+                        return value;
+                    }).count() == 0?false:true;
+                    console.log(nameVariationExists);
+                    if(!nameVariationExists){
+                        var nv = ArtistsNameVariations.build({
+                            name:_artistToSync.Artist.name,
+                            service_type:self.SourceProfilePrefix,
+                            service_id:_artistToSync.Artist["id_"+self.SourceProfilePrefix]
+                        });
+                        nv.service_id = _artistToSync.Artist["id_"+self.SourceProfilePrefix];
+                        nv.service_type = self.SourceProfilePrefix;
+                        self.LibraryToSync.artists[results.name].NameVariations.push(nv);
+                    }
+                    
+
+                    // Fill Album into artist
+                    if(!self.LibraryToSync.artists[results.name].Albums.hasOwnProperty(_discogsMaster.title)){
+                        var la = new libraryModel.LibraryAlbum({
+                            title:_discogsMaster.title
+                        });
+                        la.id_disc = _discogsMaster.id;
+                        self.LibraryToSync.artists[results.name].Albums[_discogsMaster.title] = la;
+                    }
+
+                    if(_albumToSync.Album.title != _discogsMaster.title){
+                        var nameVariationExists = Enumerable.from(self.LibraryToSync.artists[results.name].Albums[_discogsMaster.title].NameVariations).where(function(nv){return nv.name == _albumToSync.Album.title},function(key,value){
+                            return value;
+                        }).count() == 0?false:true;
+                        if(!nameVariationExists){
+                            var nv = AlbumsNameVariations.build({
+                                title:_albumToSync.Album.title
+                            });
+                            nv.service_type = self.SourceProfilePrefix;
+                            nv.service_id = _albumToSync.Album["id_"+self.SourceProfilePrefix];
+                            self.LibraryToSync.artists[results.name].Albums[_discogsMaster.title].NameVariations.push(nv);
+                        }
+                    }
+                }else{
+                    console.log(_discType);
+                    self.LibraryToSync.artists[results.name].Artist.id_disc = results.artists[0].Artist.id;
+
+                    if(_albumToSync.Album.title != _discogsMaster.title){
+
+                        toRemove.push({
+                            artistName:_artistToSync.Artist.name,
+                            albumTitle:_albumToSync.Album.title
+                        });
+
+                        if(!self.LibraryToSync.artists[results.name].Albums.hasOwnProperty(_discogsMaster.title)){
+                            var la = new libraryModel.LibraryAlbum({
+                                title:_discogsMaster.title
+                            });
+                            la.id_disc = _discogsMaster.id;
+                            self.LibraryToSync.artists[results.name].Albums[_discogsMaster.title] = la;
+                        }
+                        
+                        var nameVariationExists = Enumerable.from(self.LibraryToSync.artists[results.name].Albums[_discogsMaster.title].NameVariations).where(function(nv){return nv.name == _albumToSync.Album.title},function(key,value){
+                            return value;
+                        }).count() == 0?false:true;
+                        if(!nameVariationExists){
+                            var nv = AlbumsNameVariations.build({
+                                title:_albumToSync.Album.title
+                            });
+                            nv.service_type = self.SourceProfilePrefix;
+                            nv.service_id = _albumToSync.Album["id_"+self.SourceProfilePrefix];
+                            self.LibraryToSync.artists[results.name].Albums[_discogsMaster.title].NameVariations.push(nv);
+                        }
+                    }else{
+                        self.LibraryToSync.artists[results.name].Albums[_discogsMaster.title].Album.id_disc = _discogsMaster.id;
+                        self.LibraryToSync.artists[results.name].Albums[_discogsMaster.title].Album.disc_type = _discType;
+                    }
+
+                }
+                resolve(toRemove);
+            });
+            
         });
     }
 }
+
+
 function MCLKSynchronizer(userId,library,sourceProfilePrefix){
     this.LibraryToSync = library;
     this.UserId = userId;
@@ -119,7 +350,6 @@ function MCLKSynchronizer(userId,library,sourceProfilePrefix){
             User.getById(this.UserId).then(function(result){
                 User.loadProfiles(result.dataValues,sqldb).then(u => {
                     async.eachSeries(u.ServicesProfiles,function(sp,endServicesProfiles){
-                        console.log(sp.prefix);
                         if(sp.prefix == this.SourceProfilePrefix)
                         {
                             this.SourceProfileId = sp.id;
@@ -127,9 +357,10 @@ function MCLKSynchronizer(userId,library,sourceProfilePrefix){
                         endServicesProfiles(this);
                     },function(err,rep){
                         async.eachSeries(self.LibraryToSync.artists,function(artistToSync,endLibraryArtist){
+                            console.log(artistToSync.Artist);
                             if(artistToSync.Artist["id_"+self.SourceProfilePrefix] != ""){
                                 /* search for artist in database with its source id (lfm,disc,...)  */
-                                artistToSync.Artist["existsBy"+self.SourceProfilePrefix.capitalize()]().then(artistDB => {
+                                artistToSync.Artist["existsBy"+self.SourceProfilePrefix.capitalize()](artistToSync.Artist["id_"+self.SourceProfilePrefix]).then(artistDB => {
                                     if(artistToSync.Artist.name != artistDB.name){
                                         self.ArtistToRemove.push(artistToSync.Artist.name);
                                     }
@@ -164,7 +395,118 @@ function MCLKSynchronizer(userId,library,sourceProfilePrefix){
             });
         });
     }
+    this.SyncToDatabase = function(){
+        return new Promise((resolve,reject) => {
+            User.getById(this.UserId).then(function(result){
+                User.loadProfiles(result.dataValues,sqldb).then(u => {
+                    async.eachSeries(u.ServicesProfiles,function(sp,endServicesProfiles){
+                        if(sp.prefix == this.SourceProfilePrefix)
+                        {
+                            this.SourceProfileId = sp.id;
+                        }
+                        endServicesProfiles(this);
+                    },function(err,rep){
+                        async.eachSeries(self.LibraryToSync.artists,function(artistToSync,endLibraryArtist){
+                            // Artist has no dicogs id
+                            // means composite artist (has sub artist) or not found in discogs
+                            //if(artistToSync.Artist.hasOwnProperty("id_disc") != ""){
+                                self.SyncArtistToDatabase(artistToSync).then(syncedArtist => {
+                                    artistToSync = syncedArtist;
+                                    if(artistToSync.SubArtists.length > 1){
+                                        async.eachSeries(artistToSync.SubArtists,function(composedArtistToSync,endComposedArtist){
+                                            self.SyncArtistToDatabase(composedArtistToSync).then(composedSyncedArtist => {
+                                                composedArtistToSync = composedSyncedArtist;
+                                                var artistFather = ArtistsFathers.build({
+                                                    artist_id:composedSyncedArtist.Artist.id,
+                                                    father_id:syncedArtist.Artist.id
+                                                });
+                                                artistFather.save().then(fatherArtistSaved => {
+                                                    endComposedArtist();
+                                                });
+                                            })
+                                        },function(){
+                                            endLibraryArtist();
+                                        });
+                                    }else{
+                                        endLibraryArtist();
+                                    }
+                                });
+                            //}else{
+                                // Artist is composite artist
+                                
+                            //}
+                        },
+                        function(){
+                            resolve(self.LibraryToSync);
+                        });
+                    });
+                });
+            });
+        });
+    }
     
+    this.SyncArtistToDatabase = function(_artist){
+        /* search for artist in database with its source id (lfm,disc,...)  */
+        return new Promise((resolve,reject) => {
+            _artist.Artist["existsByDisc"](_artist.Artist["id_disc"]).then(artistDB => {
+                _artist.Artist = artistDB;
+                if(_artist.Albums.length > 0){
+                    self.SyncAlbumsToDatabase(_artist.Albums).then(albums => {
+                        _artist.Albums = albums;
+                        resolve(_artist);
+                    }); 
+                }else{
+                    resolve(_artist);
+                }
+            }).catch(err => {
+                _artist.Artist.save().then(savedArtist => {
+                    _artist.Artist = savedArtist;
+                    if(_artist.Albums.length > 0){
+                        self.LibraryToSync.artists[savedArtist.name].Artist = savedArtist;
+                        self.SyncAlbumsToDatabase(_artist.Albums).then(albums => {
+                            _artist.Albums = albums;
+                            resolve(_artist);
+                        }).catch(errorAlbums => {
+                            logger.log('info', 
+                            errorAlbums);
+                            reject('SyncArtistToDatabase - '+errorAlbums.toString());    
+                        });
+                    }else{
+                        resolve(_artist);
+                    }
+                }).catch(errorArtist => {
+                    logger.log('info', 
+                        'Save artist to database failed', 
+                        errorArtist);
+                    reject('SyncArtistToDatabase - Error Saving Artist');
+                });
+            });
+        });
+    }
+    this.SyncAlbumsToDatabase = function(_albums){
+        return new Promise((resolve,reject) => {
+             // Browse Albums for this artist in this source
+             async.eachOf(_albums,function(albumToSyncValue,AlbumToSyncKey,endArtistAlbum){
+                /* search for album in database with its source id (lfm,disc,...) */
+                albumToSyncValue.Album["existsByDisc"](albumToSyncValue.Album.id_disc).then(albumDB => {
+                    _albums[AlbumToSyncKey] = albumDB;
+                    endArtistAlbum();
+                }).catch(err => {
+                    albumToSyncValue.Album.save().then(savedAlbum => {
+                        _albums[AlbumToSyncKey] = savedAlbum;
+                        endArtistAlbum();
+                    }).catch(errorSaveAlbum => {
+                        logger.log('info', 
+                                    'Save album to database failed', 
+                                    errorSaveAlbum);
+                        reject('SyncAlbumsToDatabase - Error Saving Album');      
+                    });
+                });
+            },function(){
+                resolve(_albums);
+            });
+        });
+    }
 }
 exports.MCLKSynchronizer = MCLKSynchronizer;
 exports.DiscogsSynchronizer = DiscogsSynchronizer;

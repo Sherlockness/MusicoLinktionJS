@@ -4,18 +4,19 @@ var ModelArtist = sqldb.Artist;
 
 function ArtistLibrary(_artist){
     this.Artist = ModelArtist.build({
-        name:_artist.name,
-        id_lfm:_artist.id_lfm
+        name:_artist.name
     });
+    this.NameVariations = [];
+    this.SubArtists = [];
     this.Albums = {};
-    this.SubArtists = {};
 }
 var ModelAlbum = sqldb.Album;
 function AlbumLibrary(_album) {
     this.Album = ModelAlbum.build({
-        title:_album.title,
-        id_lfm:_album.id_lfm
+        title:_album.title
     });
+    this.Artist = {};
+    this.NameVariations = [];
     this.Tracks = [];
 }
 

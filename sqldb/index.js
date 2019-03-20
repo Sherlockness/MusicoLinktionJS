@@ -28,6 +28,11 @@ db.UsersServicesProfilesData = db.sequelize.import('./UsersServicesProfilesData'
 db.Artist = db.sequelize.import('./Artist');
 db.Album = db.sequelize.import('./Album');
 db.AlbumsArtists = db.sequelize.import('./AlbumsArtists');
+db.ArtistsFathers = db.sequelize.import('./ArtistsFathers');
+db.ArtistsNameVariations = db.sequelize.import('./ArtistsNameVariations');
+db.AlbumsNameVariations = db.sequelize.import('./AlbumsNameVariations');
+db.UsersServicesProfilesArtists = db.sequelize.import('./UsersServicesProfilesArtists');
+db.UsersServicesProfilesAlbums = db.sequelize.import('./UsersServicesProfilesAlbums');
 
 /* Associations */
 /* Services Profiles and Users */

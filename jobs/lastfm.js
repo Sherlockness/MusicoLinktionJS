@@ -86,16 +86,18 @@ function getFullLibrary(userId){
                 buildLFMLibrary(0).then(r => {
                     var MCLKSync = new Synchronizer.MCLKSynchronizer(userId,library,'lfm');
                     MCLKSync.SyncFromDatabase().then(l => {
-                        var DiscogsSync = new Synchronizer.DiscogsSynchronizer(userId,library,discogsDB);
+                        var DiscogsSync = new Synchronizer.DiscogsSynchronizer(userId,library,discogsDB,'lfm');
                         DiscogsSync.Sync().then(ld => {
-                            var fs = require('fs');
-                            fs.writeFile("/tmp/lfmLibrary.json", JSON.stringify(ld, null, 2) , 'utf-8', function(err) {
-                                if(err) {
-                                    return console.log(err);
-                                }
-                                console.log("The file was saved!");
+                            MCLKSync.SyncToDatabase().then(l => {
+                                var fs = require('fs');
+                                fs.writeFile("/tmp/lfmLibrary.json", JSON.stringify(l, null, 2) , 'utf-8', function(err) {
+                                    if(err) {
+                                        return console.log(err);
+                                    }
+                                    console.log("The file was saved!");
+                                });
                             });
-                        })
+                        });
                     });
                 });
             });
@@ -117,16 +119,13 @@ function buildLFMLibrary(artistPage){
                 async.eachSeries(artists.artist,function(a,endArtists){
                     console.log('PROCESSING : '+a.name+' | page : '+artistPage);
                     buildLFMArtistLibrary(a,0).then(r => {
-                        console.log(r);
                         endArtists();
                     })
                 },function(err){
-                    console.log("endArtists page - "+artistPage);
                     if(err != null){
                         console.log(err);
                     }else{
                         buildLFMLibrary(artistPage).then(r => {
-                            console.log(r);
                             if(r == 'end of artists treatement'){
                                 resolve(r);
                             }
@@ -160,13 +159,13 @@ function buildLFMArtistLibrary(a,tracksPage){
                         if(!library.artists.hasOwnProperty(a.name)){
                             library.artists[a.name] = new libraryModel.LibraryArtist({
                                 name:a.name,
-                                id_lfm:a.mbid
                             });
+                            library.artists[a.name].Artist.id_lfm = a.mbid;
                         }
                         library.artists[a.name].Albums[t.album['#text']] = new libraryModel.LibraryAlbum({
-                            title:t.album['#text'],
-                            id_lfm:t.album.mbid
+                            title:t.album['#text']
                         });
+                        library.artists[a.name].Albums[t.album['#text']].Album.id_lfm = t.album.mbid;
                         console.log("album traite : "+a.name+" - "+t.album['#text']);
                         albumTraite.push(a.name+" - "+t.album['#text']);
                         endTrack();
@@ -178,13 +177,11 @@ function buildLFMArtistLibrary(a,tracksPage){
                         resolve(err);
                     }else{
                         buildLFMArtistLibrary(a,tracksPage).then(r => {
-                            console.log(r);
                             if(r == 'end of tracks treatement'){
                                 resolve(r);
                             }
                         })
                     }
-                    console.log("end tracks of artist--------------------------------------------------- ");
                 });
                 
             }else{

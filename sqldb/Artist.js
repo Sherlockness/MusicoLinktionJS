@@ -18,13 +18,13 @@ module.exports = function(sequelize, DataTypes) {
 		id_disc: DataTypes.BIGINT,
 		name: DataTypes.STRING(1000),
   }, {
-    tableName: 'mclk_artists', // oauth_users
+    tableName: 'mclk_artists', // oauth_users 
     timestamps: false,
     underscored: true,
 
     classMethods: {
 		associate: function associate(models) {
-			Artist.belongsToMany(models.Artist, { as: 'ArtistsFathers', through: models.ArtistsFathers , foreignKey: 'artitst_id', otherKey: 'father_id'});
+			Artist.belongsToMany(models.Artist, { as: 'ArtistsFathers', through: models.ArtistsFathers , foreignKey: 'artist_id', otherKey: 'father_id'});
 		}
 	},
 
@@ -45,10 +45,10 @@ module.exports = function(sequelize, DataTypes) {
 				});
 			})
 		},
-		existsByLfm: function(){
+		existsByLfm: function(vIdLfm){
 			return new Promise((resolve,reject) => {
 				Artist.findOne({
-					where: {id_lfm: this.id_lfm}
+					where: {id_lfm: vIdLfm}
 				}).then(u => {
 					if(u === null){
 						reject({
