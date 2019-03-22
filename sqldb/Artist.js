@@ -25,6 +25,7 @@ module.exports = function(sequelize, DataTypes) {
     classMethods: {
 		associate: function associate(models) {
 			Artist.belongsToMany(models.Artist, { as: 'ArtistsFathers', through: models.ArtistsFathers , foreignKey: 'artist_id', otherKey: 'father_id'});
+			Artist.belongsToMany(models.Album, { as: 'AlbumsArtists', through: models.AlbumsArtists , foreignKey: 'artist_id', otherKey: 'album_id'});
 		}
 	},
 

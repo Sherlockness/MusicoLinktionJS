@@ -43,6 +43,7 @@ switch(job){
 
 function getFullLibrary(userId){
     User.getById(userId).then(function(result){
+        // load services profile
         User.loadProfiles(result.dataValues,sqldb).then(u => {
 		    var hasProfile = false;
 		    var profileData = null;
@@ -83,14 +84,37 @@ function getFullLibrary(userId){
                 }
                 
 		    },function(err){
+                // Get last fm library and sync it 
                 buildLFMLibrary(0).then(r => {
+                    var fs = require('fs');
+                    fs.writeFile("/tmp/lfmLibrary_afterlfm.json", JSON.stringify(library, null, 2) , 'utf-8', function(err) {
+                        if(err) {
+                            return console.log(err);
+                        }
+                        console.log("The file was saved!");
+                    });
+                    // FROM Database synchronisation
                     var MCLKSync = new Synchronizer.MCLKSynchronizer(userId,library,'lfm');
                     MCLKSync.SyncFromDatabase().then(l => {
+                        fs.writeFile("/tmp/lfmLibrary_afterMCLK.json", JSON.stringify(l, null, 2) , 'utf-8', function(err) {
+                            if(err) {
+                                return console.log(err);
+                            }
+                            console.log("The file was saved!");
+                        });
+                        // Discogs sync for element that do not exists in database
                         var DiscogsSync = new Synchronizer.DiscogsSynchronizer(userId,library,discogsDB,'lfm');
                         DiscogsSync.Sync().then(ld => {
+                            var fs = require('fs');
+                            fs.writeFile("/tmp/lfmLibraryAfterDiscogs.json", JSON.stringify(ld, null, 2) , 'utf-8', function(err) {
+                                if(err) {
+                                    return console.log(err);
+                                }
+                                console.log("The file was saved!");
+                            });
                             MCLKSync.SyncToDatabase().then(l => {
                                 var fs = require('fs');
-                                fs.writeFile("/tmp/lfmLibrary.json", JSON.stringify(l, null, 2) , 'utf-8', function(err) {
+                                fs.writeFile("/tmp/lfmLibraryAfterToDatabase.json", JSON.stringify(l, null, 2) , 'utf-8', function(err) {
                                     if(err) {
                                         return console.log(err);
                                     }
@@ -107,20 +131,29 @@ function getFullLibrary(userId){
     });
 }
 
+// DEBUG Purpose
+
+
 function buildLFMLibrary(artistPage){
 	return new Promise((resolve,reject) => {
 		var params = {
             'user' : lfm.sessionCredentials.username,
             'page' : parseInt(artistPage,10)+parseInt(1,10)
         }
+        var cpt = 0;
         lfm.library.getArtists(params, function(err,artists){
             if(artists.artist.length != 0 && params.page < 2){
                 artistPage = artists['@attr'].page;
                 async.eachSeries(artists.artist,function(a,endArtists){
-                    console.log('PROCESSING : '+a.name+' | page : '+artistPage);
-                    buildLFMArtistLibrary(a,0).then(r => {
-                        endArtists();
-                    })
+                    if(cpt < 1){
+                        console.log('PROCESSING : '+a.name+' | page : '+artistPage+' | cpt : '+cpt);
+                        buildLFMArtistLibrary(a,0).then(r => {
+                            cpt++;
+                            endArtists();
+                        })
+                    }else{
+                        resolve("end of artists treatement");
+                    }
                 },function(err){
                     if(err != null){
                         console.log(err);

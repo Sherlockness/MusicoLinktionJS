@@ -6,6 +6,7 @@ var User = sqldb.User;
 var ArtistsNameVariations = sqldb.ArtistsNameVariations;
 var AlbumsNameVariations = sqldb.AlbumsNameVariations;
 var ArtistsFathers = sqldb.ArtistsFathers;
+var AlbumsArtists = sqldb.AlbumsArtists;
 
 // log dependencies
 var d = new Date();
@@ -224,6 +225,7 @@ function DiscogsSynchronizer(userId,library,discogsDB,sourceProfilePrefix){
                 service_id:_artistToSync.Artist["id_"+self.SourceProfilePrefix]
             };
             var toRemove = [];
+            // Composed artists : Iterate through all artists (Ex : DJ Food & DK)
             async.eachSeries(_discogsMaster.artists,function(da,endDiscogsArtist){
                 results.name+=da.name+" "+da.join+" ";
                 var subArtist = new libraryModel.LibraryArtist({
@@ -255,10 +257,11 @@ function DiscogsSynchronizer(userId,library,discogsDB,sourceProfilePrefix){
                         }
                     }
                     
+                    /* Check if this name variation exist and set it in object */
                     var nameVariationExists = Enumerable.from(self.LibraryToSync.artists[results.name].NameVariations).where(function(nv){return nv.name == _artistToSync.Artist.name},function(key,value){
                         return value;
                     }).count() == 0?false:true;
-                    console.log(nameVariationExists);
+                    
                     if(!nameVariationExists){
                         var nv = ArtistsNameVariations.build({
                             name:_artistToSync.Artist.name,
@@ -280,6 +283,8 @@ function DiscogsSynchronizer(userId,library,discogsDB,sourceProfilePrefix){
                         self.LibraryToSync.artists[results.name].Albums[_discogsMaster.title] = la;
                     }
 
+                    // if album from dicogs has not the same title as the album to sync
+                    // check name variations ans set it
                     if(_albumToSync.Album.title != _discogsMaster.title){
                         var nameVariationExists = Enumerable.from(self.LibraryToSync.artists[results.name].Albums[_discogsMaster.title].NameVariations).where(function(nv){return nv.name == _albumToSync.Album.title},function(key,value){
                             return value;
@@ -294,17 +299,22 @@ function DiscogsSynchronizer(userId,library,discogsDB,sourceProfilePrefix){
                         }
                     }
                 }else{
-                    console.log(_discType);
-                    self.LibraryToSync.artists[results.name].Artist.id_disc = results.artists[0].Artist.id;
-
+                    // Update artists with info received from discogs
+                    self.LibraryToSync.artists[results.name].Artist.id_disc = results.artists[0].Artist.id_disc;
+                    // if album from dicogs has not the same title as the album to sync
+                    // - album must be removed from the existing artist
+                    // - check name variations ans set it
                     if(_albumToSync.Album.title != _discogsMaster.title){
-
+                        // Remove album
                         toRemove.push({
                             artistName:_artistToSync.Artist.name,
                             albumTitle:_albumToSync.Album.title
                         });
 
+                        // check if album already exist in object
+                        // - create one if not
                         if(!self.LibraryToSync.artists[results.name].Albums.hasOwnProperty(_discogsMaster.title)){
+                            // Create it
                             var la = new libraryModel.LibraryAlbum({
                                 title:_discogsMaster.title
                             });
@@ -312,6 +322,8 @@ function DiscogsSynchronizer(userId,library,discogsDB,sourceProfilePrefix){
                             self.LibraryToSync.artists[results.name].Albums[_discogsMaster.title] = la;
                         }
                         
+                        // Check if name vaiation exists in object
+                        // if not create one
                         var nameVariationExists = Enumerable.from(self.LibraryToSync.artists[results.name].Albums[_discogsMaster.title].NameVariations).where(function(nv){return nv.name == _albumToSync.Album.title},function(key,value){
                             return value;
                         }).count() == 0?false:true;
@@ -368,11 +380,11 @@ function MCLKSynchronizer(userId,library,sourceProfilePrefix){
                                     // Browse Albums for this artist in this source
                                     async.eachSeries(artistToSync.Albums,function(albumToSync,endArtistAlbum){
                                         /* search for album in database with its source id (lfm,disc,...) */
-                                        albumToSync["existsBy"+self.SourceProfilePrefix.capitalize()]().then(albumDB => {
-                                            if(albumToSync.title != albumDB.title){
+                                        albumToSync.Album["existsBy"+self.SourceProfilePrefix.capitalize()]().then(albumDB => {
+                                            if(albumToSync.Album.title != albumDB.title){
                                                 self.AlbumToRemove.push(albumToSync.title);
                                             }
-                                            self.LibraryToSync.artists[artistDB.name].Albums[albumDB.title] = albumDB;
+                                            self.LibraryToSync.artists[artistDB.name].Albums[albumDB.title].Album = albumDB;
                                             endArtistAlbum();
                                         }).catch(err => {
                                             endArtistAlbum();
@@ -451,7 +463,7 @@ function MCLKSynchronizer(userId,library,sourceProfilePrefix){
             _artist.Artist["existsByDisc"](_artist.Artist["id_disc"]).then(artistDB => {
                 _artist.Artist = artistDB;
                 if(_artist.Albums.length > 0){
-                    self.SyncAlbumsToDatabase(_artist.Albums).then(albums => {
+                    self.SyncAlbumsToDatabase(_artist.Albums,artistDB).then(albums => {
                         _artist.Albums = albums;
                         resolve(_artist);
                     }); 
@@ -460,10 +472,29 @@ function MCLKSynchronizer(userId,library,sourceProfilePrefix){
                 }
             }).catch(err => {
                 _artist.Artist.save().then(savedArtist => {
-                    _artist.Artist = savedArtist;
-                    if(_artist.Albums.length > 0){
-                        self.LibraryToSync.artists[savedArtist.name].Artist = savedArtist;
-                        self.SyncAlbumsToDatabase(_artist.Albums).then(albums => {
+                    console.log(_artist.Artist.NameVariations);
+                    async.eachSeries(_artist.NameVariations,function(nv,endNameVariationsSync){
+                        nv.artist_id = savedArtist.id;
+                        nv.existsByName(nv.name).then(nvDB => {
+                            nv = nvDB;
+                            endNameVariationsSync();
+                        }).catch(err => {
+                            console.log('does not exist');
+                            nv.save().then(savedNv => {
+                                nv = savedNv;
+                                endNameVariationsSync();
+                            }).catch(errorNameVariation => {
+                                logger.log('info', 
+                                    'Save artist name variation to database failed', 
+                                    errorNameVariation);
+                                reject('SyncArtistToDatabase - Error Saving Artist Name Variation');
+                            })
+                        })
+                    },function(err,rep){
+                        _artist.Artist = savedArtist;
+                        console.log('End Name Variation');
+                        //self.LibraryToSync.artists[savedArtist.name].Artist = savedArtist;
+                        self.SyncAlbumsToDatabase(_artist.Albums,savedArtist).then(albums => {
                             _artist.Albums = albums;
                             resolve(_artist);
                         }).catch(errorAlbums => {
@@ -471,9 +502,8 @@ function MCLKSynchronizer(userId,library,sourceProfilePrefix){
                             errorAlbums);
                             reject('SyncArtistToDatabase - '+errorAlbums.toString());    
                         });
-                    }else{
-                        resolve(_artist);
-                    }
+                        
+                    });
                 }).catch(errorArtist => {
                     logger.log('info', 
                         'Save artist to database failed', 
@@ -483,18 +513,64 @@ function MCLKSynchronizer(userId,library,sourceProfilePrefix){
             });
         });
     }
-    this.SyncAlbumsToDatabase = function(_albums){
+    this.SyncAlbumsToDatabase = function(_albums,_artist){
         return new Promise((resolve,reject) => {
+            console.log('sync albums to database');
              // Browse Albums for this artist in this source
              async.eachOf(_albums,function(albumToSyncValue,AlbumToSyncKey,endArtistAlbum){
                 /* search for album in database with its source id (lfm,disc,...) */
                 albumToSyncValue.Album["existsByDisc"](albumToSyncValue.Album.id_disc).then(albumDB => {
-                    _albums[AlbumToSyncKey] = albumDB;
-                    endArtistAlbum();
+                    _albums[AlbumToSyncKey].Album = albumDB;
+                    async.eachSeries(_albums[AlbumToSyncKey].NameVariations,function(nv,endNameVariationsSync){
+                        nv.album_id = albumDB.id;
+                        nv.existsByTitle(nv.title).then(nvDB => {
+                            nv = nvDB;
+                            endNameVariationsSync();
+                        }).catch(err => {
+                            nv.save().then(savedNv => {
+                                nv = savedNv;
+                                endNameVariationsSync();
+                            }).catch(errorNameVariation => {
+                                logger.log('info', 
+                                    'Save album name variation to database failed', 
+                                    errorNameVariation);
+                                reject('SyncAlbumsToDatabase - Error Saving Album Name Variation');
+                            })
+                        })
+                    },function(err,rep){
+                        endArtistAlbum();
+                    });
+                    
                 }).catch(err => {
                     albumToSyncValue.Album.save().then(savedAlbum => {
-                        _albums[AlbumToSyncKey] = savedAlbum;
-                        endArtistAlbum();
+                        _albums[AlbumToSyncKey].Album = savedAlbum;
+                        
+                        async.eachSeries(_albums[AlbumToSyncKey].NameVariations,function(nv,endNameVariationsSync){
+                            nv.album_id = savedAlbum.id;
+                            nv.existsByTitle(nv.title).then(nvDB => {
+                                nv = nvDB;
+                                endNameVariationsSync();
+                            }).catch(err => {
+                                nv.save().then(savedNv => {
+                                    nv = savedNv;
+                                    endNameVariationsSync();
+                                }).catch(errorNameVariation => {
+                                    logger.log('info', 
+                                        'Save album name variation to database failed', 
+                                        errorNameVariation);
+                                    reject('SyncAlbumsToDatabase - Error Saving Album Name Variation');
+                                })
+                            })
+                        },function(err,rep){
+                            var albumsArtists = AlbumsArtists.build({
+                                artist_id:_artist.id,
+                                album_id:savedAlbum.id
+                            });
+                            albumsArtists.save().then(albumsArtistsSaved => {
+                                endArtistAlbum();
+                            });
+                            //endArtistAlbum();
+                        });
                     }).catch(errorSaveAlbum => {
                         logger.log('info', 
                                     'Save album to database failed', 

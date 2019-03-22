@@ -35,7 +35,22 @@ module.exports = function(sequelize, DataTypes) {
 	},
 
 	instanceMethods: {
-		
+		existsByName: function(vName){
+			return new Promise((resolve,reject) => {
+				ArtistsNameVariations.findOne({
+					where: {name: vName}
+				}).then(nv => {
+					if(nv === null){
+						reject({
+							status:'error',
+							message:'artist name variation not found'
+						});
+					}else{
+						resolve(nv);
+					}
+				});
+			})
+		}
 	}
   });
 
